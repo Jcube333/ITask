@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
 import validator from "validator";
+import bcrypt from "bcryptjs";
 
-export const User = mongoose.model("User", {
+const userSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
@@ -9,6 +10,7 @@ export const User = mongoose.model("User", {
   },
   email: {
     type: String,
+    unique: true,
     required: true,
     trim: true,
     lowercase: true,
@@ -34,3 +36,27 @@ export const User = mongoose.model("User", {
     default: 0,
   },
 });
+
+userSchema.statics.findByCredentials = async (email, password) => {
+  const usr = await User.findOne({ email });
+  if (!usr) {
+    throw new Error("Unable to login");
+  }
+
+  const isMatch = await bcrypt.compare(password, usr.password);
+  if (!isMatch) {
+    throw new Error("Unable to login");
+  }
+  return usr;
+};
+
+//Hasing password before saving using Middleware
+userSchema.pre("save", async function (next) {
+  const user = this;
+  if (user.isModified("password")) {
+    user.password = await bcrypt.hash(user.password, 8);
+  }
+
+  next();
+});
+export const User = mongoose.model("User", userSchema);

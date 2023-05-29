@@ -17,6 +17,9 @@ export const auth = async (req, res, next) => {
     //Why? Subsequent routes after this middleware don't have to explicitely fetch users.
     req.user = user;
 
+    //Specifically useful for logging out from a specific device which was used to login.
+    req.token = token;
+
     next();
   } catch (e) {
     res.send({ Error: "Not authenticated" });

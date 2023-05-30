@@ -1,6 +1,9 @@
 import express from "express";
 import { User } from "../models/user.js";
 import { auth } from "../middleware/auth.js";
+import multer from "multer";
+import sharp from "sharp";
+import { sendWelcomeMail, sendDeleteMail } from "../emails/account.js";
 
 export const userRouter = express.Router();
 
@@ -63,6 +66,7 @@ userRouter.post("/users", async (req, res) => {
 
   try {
     const usr = await user.save();
+    sendWelcomeMail(usr.email, usr.name);
     const token = await user.generateAuthToken();
     console.log(usr);
 
@@ -96,9 +100,75 @@ userRouter.patch("/users/me", auth, async (req, res) => {
 userRouter.delete("/users/me", auth, async (req, res) => {
   try {
     await req.user.remove();
-
+    sendDeleteMail(req.user.email, req.user.name);
     return res.send(req.user);
   } catch (e) {
     return res.status(500).send(e);
   }
 });
+
+//File uploads
+
+const upload = multer({
+  // dest: "avatar",
+  limits: {
+    fileSize: 1000000,
+  },
+  fileFilter(req, file, cb) {
+    // console.log(file.originalname);
+
+    if (!file.originalname.match(/\.(png|jpg|jpeg)$/))
+      return cb(new Error("Please upload a valid image (png,jpg,jpeg)"));
+
+    return cb(undefined, true);
+  },
+});
+
+userRouter.post(
+  "/uploads/me/avatar",
+  auth,
+  upload.single("myImg"),
+  async (req, res) => {
+    const buffer = await sharp(req.file.buffer)
+      .resize({ width: 250, height: 250 })
+      .png()
+      .toBuffer();
+
+    req.user.avatar = buffer;
+    await req.user.save();
+    res.send();
+  },
+  (err, req, res, next) => {
+    res.status(400).send({ error: err.message });
+  }
+);
+
+userRouter.get("/uploads/:id/avatar", async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user || !user.avatar);
+    {
+      new Error("");
+    }
+
+    res.header("Content-Type", "image/png");
+
+    res.send(user.avatar);
+  } catch (e) {
+    res.status(400).send();
+  }
+});
+
+userRouter.delete(
+  "/uploads/me/avatar",
+  auth,
+  async (req, res) => {
+    req.user.avatar = undefined;
+    await req.user.save();
+
+    res.send();
+  },
+  (err, req, res, next) => {
+    res.status(500).send({ serverError: err.message });
+  }
+);

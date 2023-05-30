@@ -6,10 +6,27 @@ import { auth } from "../middleware/auth.js";
 export const taskRouter = express.Router();
 
 //Get requests for tasks
+// GET/tasks?completed=true
+// GET/tasks?limit=10&skip=5
+// GET/tasks?sortBy = createdAt:desc or updatedAt:asc or any criteria in our JSON response
+//Note: ':' is just added as a separator it has no special meaning
 
 taskRouter.get("/tasks", auth, async (req, res) => {
+  const match = {};
+
+  if (req.query.completed) {
+    match.completed = req.query.completed == "true";
+  }
+
   try {
-    await req.user.populate("tasks");
+    await req.user.populate({
+      path: "tasks",
+      match,
+      options: {
+        limit: parseInt(req.query.limit),
+        skip: parseInt(req.query.skip),
+      },
+    });
     //Alternative:
     //Task.find({owner:req.user._id})
     if (!req.user.tasks)
